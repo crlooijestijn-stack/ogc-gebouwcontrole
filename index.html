@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <meta name="theme-color" content="#0b1f2a">
 <title>OGC – Omgeving & Gebouwen Controle</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 :root {
   --navy:#0b1f2a; --blue:#145a78; --green:#16834a; --orange:#d97800;
@@ -142,8 +144,7 @@ button {border:0;border-radius:11px;padding:12px 14px;font:700 14px inherit;curs
 
 <div class="actions">
   <button class="secondary" onclick="saveForm()">Opslaan</button>
-  <button class="secondary" onclick="savePdfOneDrive()">PDF / OneDrive</button>
-  <button class="primary" onclick="exportForm()">Opslaan als PDF</button>
+  <button class="primary" onclick="shareForm()">Delen</button>
   <button class="danger" onclick="clearForm()">Wissen</button>
 </div>
 <div id="toast" class="toast"></div>
@@ -270,52 +271,112 @@ function loadForm(){
 }
 
 
-function savePdfOneDrive(){
+async function shareForm(){
   saveForm(false);
-  // Zorg dat alle secties zichtbaar zijn tijdens het maken van de PDF.
   document.querySelectorAll('details.room').forEach(d => d.open = true);
-  document.body.classList.add('pdf-mode');
 
-  // Geef de browser een nette bestandsnaam mee waar mogelijk.
   const d = collect();
-  const safe = (d.objectnr || d.objectname || 'controle')
-    .replace(/[^a-z0-9_-]/gi,'_');
-  document.title = 'OGC-controle-' + safe + '-' + (d.date || '');
+  const safe = (d.objectnr || d.objectname || 'controle').replace(/[^a-z0-9_-]/gi,'_');
+  const filename = `OGC-controle-${safe}-${d.date || ''}.pdf`;
+  const source = document.querySelector('main.container');
+  const originalTitle = document.title;
+  document.title = filename.replace('.pdf','');
 
-  toast('PDF-weergave wordt geopend…');
+  toast('PDF maken…');
 
-  setTimeout(() => {
-    window.print();
-    // Na terugkeer uit de iPhone-printweergave herstellen we de normale weergave.
-    setTimeout(() => {
-      document.body.classList.remove('pdf-mode');
-      document.title = 'OGC – Omgeving & Gebouwen Controle';
-    }, 1200);
-  }, 250);
+  try {
+    if (!window.jspdf || !window.html2canvas) throw new Error('PDF library niet geladen');
+
+    // Maak een nette PDF-kopie zonder de vaste iPhone-knoppen.
+    const clone = source.cloneNode(true);
+    clone.style.position='absolute';
+    clone.style.left='-10000px';
+    clone.style.top='0';
+    clone.style.width='760px';
+    clone.style.maxWidth='760px';
+    clone.style.background='#fff';
+    clone.style.padding='12px';
+    clone.style.zIndex='-1';
+    document.body.appendChild(clone);
+
+    // Alle details in de kopie openklappen en de resultaatweergave behouden.
+    clone.querySelectorAll('details').forEach(x=>x.open=true);
+    clone.querySelectorAll('textarea').forEach((el,i)=>{
+      const original=source.querySelectorAll('textarea')[i];
+      if(original) el.value=original.value;
+    });
+    clone.querySelectorAll('input').forEach((el,i)=>{
+      const original=source.querySelectorAll('input')[i];
+      if(original){ el.value=original.value; el.checked=original.checked; }
+    });
+
+    // Verberg interactieve bediening in de PDF en maak de inhoud compacter.
+    clone.querySelectorAll('.status input,.note-check').forEach(el=>el.style.display='none');
+    clone.querySelectorAll('.note').forEach(el=>el.style.display='block');
+    clone.querySelectorAll('.card,.result-card').forEach(el=>{
+      el.style.boxShadow='none';
+      el.style.breakInside='avoid';
+    });
+
+    const canvas = await html2canvas(clone, {
+      scale: 2,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+      logging: false,
+      windowWidth: 760
+    });
+    clone.remove();
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({orientation:'p', unit:'mm', format:'a4', compress:true});
+    const pageW = 210, pageH = 297, margin = 8;
+    const imgW = pageW - margin*2;
+    const imgH = canvas.height * imgW / canvas.width;
+    let remaining = imgH;
+    let y = margin;
+    let position = 0;
+
+    pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',margin,y,imgW,imgH);
+    remaining -= (pageH - margin*2);
+    while(remaining > 0){
+      position -= (pageH - margin*2);
+      pdf.addPage();
+      pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',margin,position,imgW,imgH);
+      remaining -= (pageH - margin*2);
+    }
+
+    const blob = pdf.output('blob');
+    const file = new File([blob], filename, {type:'application/pdf'});
+
+    // Op iPhone/iPad: native deelmenu met PDF als echte bijlage.
+    if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
+      await navigator.share({
+        title: 'OGC gebouwcontrole',
+        text: `Gebouwcontrole ${d.objectname || d.objectnr || ''}`.trim(),
+        files: [file]
+      });
+      toast('Deelmenu geopend');
+    } else {
+      // Fallback voor browsers zonder bestand-delen: PDF downloaden.
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url; a.download=filename; a.click();
+      setTimeout(()=>URL.revokeObjectURL(url),2000);
+      toast('PDF opgeslagen als bestand');
+    }
+  } catch(e) {
+    console.error(e);
+    // Als PDF-generatie niet lukt, gebruik de normale print/PDF-fallback.
+    toast('PDF maken lukt niet automatisch; printweergave wordt geopend…');
+    setTimeout(()=>window.print(),300);
+  } finally {
+    document.title=originalTitle;
+  }
 }
 
 function exportForm(){
-  // Exporteren = PDF, nooit meer TXT.
-  saveForm(false);
-
-  // Alle ruimtes openen zodat de volledige controle in de PDF komt.
-  document.querySelectorAll('details.room').forEach(d => d.open = true);
-
-  const d = collect();
-  const safe = (d.objectnr || d.objectname || 'controle')
-    .replace(/[^a-z0-9_-]/gi,'_');
-
-  document.title = 'OGC-controle-' + safe + '-' + (d.date || '');
-
-  toast('PDF wordt klaargezet…');
-
-  setTimeout(() => {
-    window.print();
-
-    setTimeout(() => {
-      document.title = 'OGC – Omgeving & Gebouwen Controle';
-    }, 1200);
-  }, 250);
+  // Compatibiliteitsfunctie: exporteren gebruikt dezelfde deelbare PDF.
+  shareForm();
 }
 
 function clearForm(){
