@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <meta name="theme-color" content="#0b1f2a">
 <title>OGC – Omgeving & Gebouwen Controle</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 :root {
   --navy:#0b1f2a; --blue:#145a78; --green:#16834a; --orange:#d97800;
@@ -144,7 +142,8 @@ button {border:0;border-radius:11px;padding:12px 14px;font:700 14px inherit;curs
 
 <div class="actions">
   <button class="secondary" onclick="saveForm()">Opslaan</button>
-  <button class="primary" onclick="shareForm()">Delen</button>
+  <button class="secondary" onclick="savePdfOneDrive()">PDF / OneDrive</button>
+  <button class="primary" onclick="exportForm()">Opslaan als PDF</button>
   <button class="danger" onclick="clearForm()">Wissen</button>
 </div>
 <div id="toast" class="toast"></div>
@@ -271,112 +270,52 @@ function loadForm(){
 }
 
 
-async function shareForm(){
+function savePdfOneDrive(){
   saveForm(false);
+  // Zorg dat alle secties zichtbaar zijn tijdens het maken van de PDF.
+  document.querySelectorAll('details.room').forEach(d => d.open = true);
+  document.body.classList.add('pdf-mode');
+
+  // Geef de browser een nette bestandsnaam mee waar mogelijk.
   const d = collect();
-  const safe = (d.objectnr || d.objectname || 'controle').replace(/[^a-z0-9_-]/gi,'_');
-  const filename = `OGC-controle-${safe}-${d.date || new Date().toISOString().slice(0,10)}.pdf`;
-  toast('Professionele PDF maken…');
+  const safe = (d.objectnr || d.objectname || 'controle')
+    .replace(/[^a-z0-9_-]/gi,'_');
+  document.title = 'OGC-controle-' + safe + '-' + (d.date || '');
 
-  try {
-    if (!window.jspdf || !window.html2canvas) throw new Error('PDF libraries niet geladen');
+  toast('PDF-weergave wordt geopend…');
 
-    const checks = d.checks || [];
-    const counts = {Goed:0, Matig:0, Aandacht:0};
-    checks.forEach(c=>{ if(counts[c.status] !== undefined) counts[c.status]++; });
-    const total = counts.Goed + counts.Matig + counts.Aandacht;
-    const pct = k => total ? Math.round(counts[k] / total * 100) : 0;
-    const verdict = total===0 ? 'NIET COMPLEET' : counts.Aandacht>0 ? 'AFGEKEURD' : counts.Matig>0 ? 'BEOORDELING NODIG' : 'GOEDGEKEURD';
-
-    const byRoom = [];
-    rows.forEach((r,i)=>{
-      let room = byRoom.find(x=>x.name===r.room);
-      if(!room){ room={name:r.room,items:[]}; byRoom.push(room); }
-      room.items.push({...r, index:i, status:checks[i]?.status||'', note:checks[i]?.note||'', noteMade:!!checks[i]?.noteMade});
-    });
-
-    const host=document.createElement('div');
-    host.id='pdfHost';
-    host.style.cssText='position:fixed;left:-10000px;top:0;width:794px;background:#fff;z-index:-9999;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#17212b;';
-    document.body.appendChild(host);
-
-    const escPdf = v => String(v??'').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
-    const statusLabel = st => st || 'Niet ingevuld';
-    const statusClass = st => st==='Goed'?'good':st==='Matig'?'medium':st==='Aandacht'?'attention':'empty';
-    const page = () => {
-      const el=document.createElement('div');
-      el.className='pdfPage';
-      el.style.cssText='width:794px;min-height:1123px;padding:42px 48px 46px;background:#fff;box-sizing:border-box;page-break-after:always;';
-      host.appendChild(el); return el;
-    };
-    const addHeader = (el, title='OGC · Omgeving & Gebouwen Controle') => {
-      el.insertAdjacentHTML('beforeend', `<div style="border-bottom:4px solid #0b1f2a;padding-bottom:14px;margin-bottom:22px"><div style="font-size:25px;font-weight:800;color:#0b1f2a">${title}</div><div style="font-size:12px;color:#66737d;margin-top:5px">Digitale gebouwcontrole · Controleformulier</div></div>`);
-    };
-    const addMeta = (el) => {
-      el.insertAdjacentHTML('beforeend', `<div style="border:1px solid #d7dee3;border-radius:12px;padding:16px 18px;margin-bottom:18px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:14px 28px;font-size:13px"><div><b>Ingevuld door</b><br>${escPdf(d.inspector)||'—'}</div><div><b>Datum</b><br>${escPdf(d.date)||'—'}</div><div><b>Objectnummer</b><br>${escPdf(d.objectnr)||'—'}</div><div><b>Object / locatie</b><br>${escPdf(d.objectname)||'—'}</div></div></div>`);
-    };
-    const roomHtml = room => {
-      let html=`<div class="pdfRoom" style="border:1px solid #d7dee3;border-radius:10px;overflow:hidden;margin-bottom:12px"><div style="background:#0b1f2a;color:#fff;font-size:14px;font-weight:800;padding:9px 12px">${escPdf(room.name)}</div>`;
-      room.items.forEach(it=>{
-        const st=statusLabel(it.status), cls=statusClass(it.status);
-        const colors={good:'#16834a',medium:'#d97800',attention:'#c73535',empty:'#66737d'};
-        html+=`<div style="padding:9px 12px;border-top:1px solid #e2e7ea"><div style="font-size:12.5px;font-weight:700;margin-bottom:6px">${escPdf(it.item)}</div><div style="display:flex;gap:6px;font-size:10px;font-weight:800"><span style="border:1px solid #d0d6da;border-radius:6px;padding:4px 9px;${cls==='good'?'background:#e7f6ed;color:#16834a;border-color:#8bcba6':''}">Goed${it.status==='Goed'?' ✓':''}</span><span style="border:1px solid #d0d6da;border-radius:6px;padding:4px 9px;${cls==='medium'?'background:#fff1dc;color:#a85d00;border-color:#e6bd82':''}">Matig${it.status==='Matig'?' ✓':''}</span><span style="border:1px solid #d0d6da;border-radius:6px;padding:4px 9px;${cls==='attention'?'background:#fde8e8;color:#b32626;border-color:#e4a0a0':''}">Aandacht${it.status==='Aandacht'?' ✓':''}</span></div>${it.noteMade||it.note?`<div style="margin-top:6px;font-size:10px;color:#596772"><b>Notitie:</b> ${escPdf(it.note)||'Notitie gemaakt'}</div>`:''}</div>`;
-      });
-      html+='</div>'; return html;
-    };
-
-    // Page 1: cover + metadata + compact summary
-    let el=page(); addHeader(el); addMeta(el);
-    el.insertAdjacentHTML('beforeend', `<div style="border:1px solid #d7dee3;border-radius:12px;padding:18px;margin-bottom:18px"><div style="font-size:19px;font-weight:800;margin-bottom:14px">Controleoverzicht</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px"><div style="background:#e7f6ed;border-radius:10px;padding:12px"><div style="font-size:11px;color:#47705a">Goed</div><div style="font-size:25px;font-weight:900;color:#16834a">${pct('Goed')}%</div><div style="font-size:11px">${counts.Goed} controlepunten</div></div><div style="background:#fff1dc;border-radius:10px;padding:12px"><div style="font-size:11px;color:#7d633d">Matig</div><div style="font-size:25px;font-weight:900;color:#d97800">${pct('Matig')}%</div><div style="font-size:11px">${counts.Matig} controlepunten</div></div><div style="background:#fde8e8;border-radius:10px;padding:12px"><div style="font-size:11px;color:#7d4b4b">Aandacht</div><div style="font-size:25px;font-weight:900;color:#c73535">${pct('Aandacht')}%</div><div style="font-size:11px">${counts.Aandacht} controlepunten</div></div></div></div><div style="border:2px solid ${verdict==='GOEDGEKEURD'?'#16834a':verdict==='AFGEKEURD'?'#c73535':'#d97800'};border-radius:12px;padding:16px;text-align:center;margin-bottom:18px"><div style="font-size:11px;color:#66737d;letter-spacing:.08em">EINDOORDEEL</div><div style="font-size:24px;font-weight:900;margin-top:5px;color:${verdict==='GOEDGEKEURD'?'#16834a':verdict==='AFGEKEURD'?'#c73535':'#a85d00'}">${verdict}</div></div>`);
-    if(d.generalNotes) el.insertAdjacentHTML('beforeend', `<div style="border:1px solid #d7dee3;border-radius:10px;padding:14px"><b style="font-size:13px">Algemene opmerkingen</b><div style="font-size:12px;line-height:1.5;margin-top:7px;white-space:pre-wrap">${escPdf(d.generalNotes)}</div></div>`);
-
-    // Detail pages: keep rooms intact where possible, but cap page size by item count.
-    let current=page(); addHeader(current,'OGC · Controlepunten');
-    let itemsOnPage=0;
-    for(const room of byRoom){
-      const roomCount=room.items.length;
-      if(itemsOnPage>0 && itemsOnPage+roomCount>12){ current=page(); addHeader(current,'OGC · Controlepunten'); itemsOnPage=0; }
-      current.insertAdjacentHTML('beforeend',roomHtml(room));
-      itemsOnPage += roomCount;
-    }
-
-    // Final page: explicit result + notes, so it is always clean and readable.
-    el=page(); addHeader(el,'OGC · Resultaat gebouwcontrole');
-    el.insertAdjacentHTML('beforeend', `<div style="border:2px solid ${verdict==='GOEDGEKEURD'?'#16834a':verdict==='AFGEKEURD'?'#c73535':'#d97800'};border-radius:14px;padding:20px;text-align:center;margin-bottom:22px"><div style="font-size:12px;color:#66737d">Eindoordeel</div><div style="font-size:30px;font-weight:900;margin-top:5px;color:${verdict==='GOEDGEKEURD'?'#16834a':verdict==='AFGEKEURD'?'#c73535':'#a85d00'}">${verdict}</div></div>`);
-    const bars=[['Goed',pct('Goed'),'#22c55e'],['Matig',pct('Matig'),'#f59e0b'],['Aandacht',pct('Aandacht'),'#ef4444']];
-    bars.forEach(([label,value,color])=>el.insertAdjacentHTML('beforeend',`<div style="margin:18px 0"><div style="display:flex;justify-content:space-between;font-size:14px;font-weight:800;margin-bottom:7px"><span>${label}</span><span>${value}%</span></div><div style="height:15px;background:#edf0f2;border-radius:10px;overflow:hidden"><div style="width:${value}%;height:100%;background:${color};border-radius:10px"></div></div></div>`));
-    el.insertAdjacentHTML('beforeend',`<div style="margin-top:26px;padding:16px;border-radius:10px;background:#f5f7f8;font-size:12px;line-height:1.5">${total?`Er zijn <b>${total}</b> ingevulde controlepunten: <b>${counts.Goed} goed</b>, <b>${counts.Matig} matig</b> en <b>${counts.Aandacht} met aandacht.</b>`:'Er zijn nog geen controlepunten ingevuld.'}</div>`);
-    if(d.generalNotes) el.insertAdjacentHTML('beforeend', `<div style="margin-top:18px;border:1px solid #d7dee3;border-radius:10px;padding:14px"><b style="font-size:13px">Algemene opmerkingen</b><div style="font-size:12px;line-height:1.5;margin-top:7px;white-space:pre-wrap">${escPdf(d.generalNotes)}</div></div>`);
-
-    const pages=[...host.querySelectorAll('.pdfPage')];
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({orientation:'p',unit:'mm',format:'a4',compress:true});
-    for(let i=0;i<pages.length;i++){
-      const canvas=await html2canvas(pages[i],{scale:2,backgroundColor:'#fff',useCORS:true,logging:false,width:794,height:1123});
-      if(i>0) pdf.addPage();
-      pdf.addImage(canvas.toDataURL('image/jpeg',0.93),'JPEG',0,0,210,297);
-    }
-    host.remove();
-    const blob=pdf.output('blob');
-    const file=new File([blob],filename,{type:'application/pdf'});
-    if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
-      await navigator.share({title:'OGC gebouwcontrole',text:`Gebouwcontrole ${d.objectname||d.objectnr||''}`.trim(),files:[file]});
-      toast('Deelmenu geopend');
-    }else{
-      const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click();
-      setTimeout(()=>URL.revokeObjectURL(url),3000); toast('PDF opgeslagen als bestand');
-    }
-  } catch(e){
-    console.error(e);
-    const host=document.getElementById('pdfHost'); if(host)host.remove();
-    toast('PDF maken lukt niet automatisch; printweergave wordt geopend…');
-    setTimeout(()=>window.print(),300);
-  }
+  setTimeout(() => {
+    window.print();
+    // Na terugkeer uit de iPhone-printweergave herstellen we de normale weergave.
+    setTimeout(() => {
+      document.body.classList.remove('pdf-mode');
+      document.title = 'OGC – Omgeving & Gebouwen Controle';
+    }, 1200);
+  }, 250);
 }
 
 function exportForm(){
-  // Compatibiliteitsfunctie: exporteren gebruikt dezelfde deelbare PDF.
-  shareForm();
+  // Exporteren = PDF, nooit meer TXT.
+  saveForm(false);
+
+  // Alle ruimtes openen zodat de volledige controle in de PDF komt.
+  document.querySelectorAll('details.room').forEach(d => d.open = true);
+
+  const d = collect();
+  const safe = (d.objectnr || d.objectname || 'controle')
+    .replace(/[^a-z0-9_-]/gi,'_');
+
+  document.title = 'OGC-controle-' + safe + '-' + (d.date || '');
+
+  toast('PDF wordt klaargezet…');
+
+  setTimeout(() => {
+    window.print();
+
+    setTimeout(() => {
+      document.title = 'OGC – Omgeving & Gebouwen Controle';
+    }, 1200);
+  }, 250);
 }
 
 function clearForm(){
