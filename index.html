@@ -78,6 +78,22 @@ button {border:0;border-radius:11px;padding:12px 14px;font:700 14px inherit;curs
  .progress{display:none}
  .count{font-size:9px}
 }
+
+/* Resultaat / percentage-overzicht */
+.result-card{margin-top:18px;padding:16px;border:1px solid var(--line);border-radius:14px;background:#fff}
+.result-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.result-head h2{margin:0;font-size:18px}
+.verdict{font-weight:900;padding:8px 12px;border-radius:999px;font-size:13px}
+.verdict.good{background:#dcfce7;color:#166534}.verdict.warn{background:#fef3c7;color:#92400e}.verdict.bad{background:#fee2e2;color:#991b1b}.verdict.empty{background:#e5e7eb;color:#374151}
+.result-grid{display:grid;grid-template-columns:150px 1fr;gap:16px;align-items:center}
+.donut{width:140px;height:140px;border-radius:50%;background:conic-gradient(#22c55e 0 0%,#f59e0b 0 0%,#ef4444 0 0%,#e5e7eb 0 100%);position:relative;margin:auto}
+.donut:after{content:'';position:absolute;inset:27px;background:#fff;border-radius:50%}
+.donut-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:2;font-weight:900;font-size:18px}
+.result-row{margin:9px 0}.result-label{display:flex;justify-content:space-between;font-weight:700;font-size:13px;margin-bottom:4px}.result-track{height:9px;background:#e5e7eb;border-radius:99px;overflow:hidden}.result-fill{height:100%;border-radius:99px;width:0}.fill-good{background:#22c55e}.fill-warn{background:#f59e0b}.fill-bad{background:#ef4444}
+.result-note{margin:13px 0 0;font-size:12px;color:#6b7280;line-height:1.45}
+@media(max-width:520px){.result-grid{grid-template-columns:1fr}.donut{width:125px;height:125px}}
+@media print{.result-card{break-inside:avoid}.verdict{border:1px solid #999}.result-track{border:1px solid #ccc}.result-fill{print-color-adjust:exact;-webkit-print-color-adjust:exact}.donut{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
+
 </style>
 </head>
 <body>
@@ -105,6 +121,23 @@ button {border:0;border-radius:11px;padding:12px 14px;font:700 14px inherit;curs
   <label for="generalNotes">Algemene opmerkingen</label>
   <textarea id="generalNotes" placeholder="Eventuele aanvullende opmerkingen..."></textarea>
 </section>
+
+<section class="result-card" id="resultCard">
+  <div class="result-head">
+    <h2>Resultaat gebouwcontrole</h2>
+    <span id="verdict" class="verdict empty">Nog niet ingevuld</span>
+  </div>
+  <div class="result-grid">
+    <div class="donut" id="resultDonut"><div class="donut-center" id="resultCenter">0%</div></div>
+    <div>
+      <div class="result-row"><div class="result-label"><span>Goed</span><span id="pctGood">0%</span></div><div class="result-track"><div id="barGood" class="result-fill fill-good"></div></div></div>
+      <div class="result-row"><div class="result-label"><span>Matig</span><span id="pctMedium">0%</span></div><div class="result-track"><div id="barMedium" class="result-fill fill-warn"></div></div></div>
+      <div class="result-row"><div class="result-label"><span>Aandacht</span><span id="pctAttention">0%</span></div><div class="result-track"><div id="barAttention" class="result-fill fill-bad"></div></div></div>
+    </div>
+  </div>
+  <p class="result-note" id="resultNote">De percentages worden berekend over de ingevulde controlepunten. Een controlepunt zonder keuze telt niet mee.</p>
+</section>
+
 </main>
 
 <div class="actions">
@@ -161,6 +194,33 @@ function update(){
   const pct=Math.round(done/items.length*100);
   document.getElementById('percent').textContent=pct+'%';
   document.getElementById('bar').style.width=pct+'%';
+
+  // Resultaatberekening: percentages over alle ingevulde controlepunten.
+  const counts={Goed:0,Matig:0,Aandacht:0};
+  items.forEach(x=>{const v=x.querySelector('input[type=radio]:checked')?.value;if(v&&counts[v]!==undefined)counts[v]++;});
+  const total=counts.Goed+counts.Matig+counts.Aandacht;
+  const good=total?Math.round(counts.Goed/total*100):0;
+  const medium=total?Math.round(counts.Matig/total*100):0;
+  const attention=total?Math.round(counts.Aandacht/total*100):0;
+  document.getElementById('pctGood').textContent=good+'%';
+  document.getElementById('pctMedium').textContent=medium+'%';
+  document.getElementById('pctAttention').textContent=attention+'%';
+  document.getElementById('barGood').style.width=good+'%';
+  document.getElementById('barMedium').style.width=medium+'%';
+  document.getElementById('barAttention').style.width=attention+'%';
+  document.getElementById('resultCenter').textContent=total?Math.round(good)+'% goed':'0%';
+  const donut=document.getElementById('resultDonut');
+  donut.style.background=total
+    ? `conic-gradient(#22c55e 0 ${good}%, #f59e0b ${good}% ${good+medium}%, #ef4444 ${good+medium}% 100%)`
+    : 'conic-gradient(#e5e7eb 0 100%)';
+  const verdict=document.getElementById('verdict');
+  const note=document.getElementById('resultNote');
+  verdict.className='verdict';
+  if(!total){verdict.classList.add('empty');verdict.textContent='Nog niet ingevuld';note.textContent='Vul de controlepunten in om het resultaat te berekenen.'}
+  else if(attention>0){verdict.classList.add('bad');verdict.textContent='AFGEKEURD';note.textContent=`Er zijn ${counts.Aandacht} controlepunt(en) met aandacht. Het gebouw wordt op basis van deze instelling als afgekeurd weergegeven.`}
+  else if(medium>0){verdict.classList.add('warn');verdict.textContent='BEOORDELING NODIG';note.textContent=`Er zijn ${counts.Matig} controlepunt(en) als matig beoordeeld. Er is geen 'Aandacht', maar het gebouw vraagt beoordeling/opvolging.`}
+  else if(done<items.length){verdict.classList.add('warn');verdict.textContent='NIET COMPLEET';note.textContent=`${items.length-done} controlepunt(en) zijn nog niet ingevuld.`}
+  else{verdict.classList.add('good');verdict.textContent='GOEDGEKEURD';note.textContent='Alle ingevulde controlepunten zijn goed beoordeeld en er zijn geen aandachtspunten.'}
   rooms.forEach((room,ri)=>{
     const its=items.filter(x=>x.dataset.room===room);
     const n=its.filter(x=>x.querySelector('input[type=radio]:checked')).length;
