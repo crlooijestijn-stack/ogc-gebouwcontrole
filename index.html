@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#0b1f2a">
+<title>OGC – Omgeving & Gebouwen Controle</title>
+<style>
+:root {
+  --navy:#0b1f2a; --blue:#145a78; --green:#16834a; --orange:#d97800;
+  --red:#c73535; --bg:#f3f5f7; --card:#fff; --line:#dce2e7; --muted:#66737d;
+}
+* {box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body {margin:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;color:#17212b;padding-bottom:95px}
+header {position:sticky;top:0;z-index:20;background:var(--navy);color:#fff;padding:14px 16px calc(14px + env(safe-area-inset-top));box-shadow:0 2px 8px #0003}
+header .top {display:flex;justify-content:space-between;align-items:center;gap:12px}
+h1 {font-size:19px;margin:0;font-weight:750}
+.sub {font-size:12px;opacity:.75;margin-top:3px}
+.progress {margin-top:11px;height:7px;background:#ffffff22;border-radius:10px;overflow:hidden}
+.progress i {display:block;height:100%;width:0;background:#56d58c;border-radius:10px;transition:.2s}
+.container {max-width:760px;margin:auto;padding:12px}
+.card {background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:12px;overflow:hidden;box-shadow:0 1px 2px #0000000a}
+.meta {padding:14px}
+.grid {display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label {font-size:12px;font-weight:700;color:#4d5b65;display:block;margin-bottom:5px}
+input[type=text],input[type=date],textarea {
+ width:100%;font:inherit;border:1px solid #cbd4da;border-radius:10px;padding:11px;background:#fff;
+}
+textarea {min-height:70px;resize:vertical}
+.room {border-top:1px solid var(--line)}
+.room summary {list-style:none;padding:13px 14px;font-weight:800;background:#f8fafb;display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+.room summary::-webkit-details-marker {display:none}
+.count {font-size:12px;color:var(--muted);font-weight:600}
+.item {padding:13px 14px;border-top:1px solid var(--line)}
+.item-title {font-size:15px;font-weight:650;line-height:1.25;margin-bottom:10px}
+.status {display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.status label {margin:0}
+.status input {position:absolute;opacity:0}
+.status span {
+ display:flex;justify-content:center;align-items:center;min-height:43px;border:1px solid #cbd4da;border-radius:10px;
+ font-size:13px;font-weight:750;background:#fff;color:#394650;
+}
+.status input:checked + span.good {background:#e3f6eb;border-color:var(--green);color:#096a38}
+.status input:checked + span.medium {background:#fff2df;border-color:var(--orange);color:#925400}
+.status input:checked + span.attention {background:#fde7e7;border-color:var(--red);color:#a21f1f}
+.note-row {display:flex;align-items:center;gap:8px;margin-top:9px;font-size:13px;color:#4d5b65}
+.note-row input {width:20px;height:20px}
+.note {display:none;margin-top:8px}
+.note.show {display:block}
+.actions {position:fixed;bottom:0;left:0;right:0;z-index:30;background:#fff;border-top:1px solid var(--line);padding:10px max(12px,env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));display:flex;gap:8px;box-shadow:0 -3px 12px #0001}
+button {border:0;border-radius:11px;padding:12px 14px;font:700 14px inherit;cursor:pointer}
+.primary {background:var(--navy);color:#fff;flex:1}
+.secondary {background:#e9eef1;color:#1c2b35}
+.danger {background:#fde7e7;color:#a21f1f}
+.toast {position:fixed;left:50%;bottom:85px;transform:translateX(-50%);background:#17212b;color:#fff;padding:10px 14px;border-radius:10px;font-size:13px;display:none;z-index:40}
+@media(max-width:430px){.grid{grid-template-columns:1fr}.status span{font-size:12px;padding:0 3px}}
+@media print {
+ @page { size:A4; margin:10mm; }
+ body{background:#fff;padding:0;font-size:10px}
+ header{position:static;box-shadow:none;padding:8px 0;color:#000;background:#fff}
+ header h1{font-size:16px}
+ header .sub{color:#555}
+ .actions{display:none}
+ .container{max-width:none;padding:0}
+ .card{box-shadow:none;border:1px solid #bbb;border-radius:6px;margin-bottom:7px}
+ .meta{padding:8px}
+ .grid{gap:6px}
+ input[type=text],input[type=date],textarea{border:0;padding:2px;background:#fff}
+ .room{break-inside:avoid}
+ .item{break-inside:avoid;padding:7px 8px}
+ .item-title{font-size:10px;margin-bottom:5px}
+ .status{display:flex;gap:4px}
+ .status label{flex:1}
+ .status span{min-height:20px;border:1px solid #aaa;border-radius:3px;font-size:9px}
+ .note-row{font-size:9px;margin-top:4px}
+ .note{display:block!important;min-height:20px;border:1px solid #bbb;margin-top:3px}
+ .room summary{padding:7px 8px;font-size:11px}
+ .progress{display:none}
+ .count{font-size:9px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <div><h1>OGC · Omgeving & Gebouwen Controle</h1><div class="sub">Digitaal controleformulier · iPhone</div></div>
+    <div id="percent">0%</div>
+  </div>
+  <div class="progress"><i id="bar"></i></div>
+</header>
+
+<main class="container">
+<section class="card meta">
+  <div class="grid">
+    <div><label for="inspector">Ingevuld door</label><input id="inspector" type="text" autocomplete="name" placeholder="Naam"></div>
+    <div><label for="date">Datum</label><input id="date" type="date"></div>
+    <div><label for="objectnr">Objectnummer</label><input id="objectnr" type="text" inputmode="numeric" placeholder="Bijv. 715"></div>
+    <div><label for="objectname">Object / locatie</label><input id="objectname" type="text" placeholder="Naam gebouw"></div>
+  </div>
+</section>
+
+<div id="form"></div>
+
+<section class="card meta">
+  <label for="generalNotes">Algemene opmerkingen</label>
+  <textarea id="generalNotes" placeholder="Eventuele aanvullende opmerkingen..."></textarea>
+</section>
+</main>
+
+<div class="actions">
+  <button class="secondary" onclick="saveForm()">Opslaan</button>
+  <button class="secondary" onclick="savePdfOneDrive()">PDF / OneDrive</button>
+  <button class="primary" onclick="exportForm()">Opslaan als PDF</button>
+  <button class="danger" onclick="clearForm()">Wissen</button>
+</div>
+<div id="toast" class="toast"></div>
+<div id="iosHint" style="display:none"></div>
+
+<script>
+const rows = [{"room": "Entree", "item": "Onderhoud Groen"}, {"room": "Entree", "item": "stallen van fietsen"}, {"room": "Entree", "item": "Bestrating"}, {"room": "Entree", "item": "Rondom vuilcontainers"}, {"room": "Entree", "item": "Deur/pui schoon"}, {"room": "Entree", "item": "Sloten deuren in orde"}, {"room": "Entree", "item": "Schuifdeur/draaideur"}, {"room": "Entree", "item": "Deurdrangers"}, {"room": "Entree", "item": "Verlichting"}, {"room": "Entree", "item": "Postvakken"}, {"room": "Entree", "item": "alarmsysteem"}, {"room": "Entree", "item": "Blusmateriaal"}, {"room": "Algemene ruimte", "item": "Schoonmaak vloeren"}, {"room": "Algemene ruimte", "item": "Schoonmaak deuren"}, {"room": "Algemene ruimte", "item": "Schoonmaak wanden"}, {"room": "Algemene ruimte", "item": "schoonmaak Glaswerk"}, {"room": "Algemene ruimte", "item": "Deurdrangers"}, {"room": "Algemene ruimte", "item": "Blusmateriaal"}, {"room": "Recreatie ruimte", "item": "vloeren schoon"}, {"room": "Recreatie ruimte", "item": "wanden schoon"}, {"room": "Recreatie ruimte", "item": "verlichting/nood"}, {"room": "Recreatie ruimte", "item": "deuren/paniek.sl."}, {"room": "Recreatie ruimte", "item": "blus matriaal"}, {"room": "W.C alg. Dames", "item": "Schoonmaak vloeren"}, {"room": "W.C alg. Dames", "item": "Schoonmaak deuren"}, {"room": "W.C alg. Dames", "item": "Schoonmaak wanden"}, {"room": "W.C alg. Dames", "item": "schoonmaak Glaswerk"}, {"room": "W.C alg. Dames", "item": "Deurdrangers"}, {"room": "W.C alg. Dames", "item": "vrij/bezet slot"}, {"room": "W.C alg. Dames", "item": "vulling zeep"}, {"room": "W.C alg. Dames", "item": "vulling handdoekjes"}, {"room": "W.C alg. Heren", "item": "Schoonmaak vloeren"}, {"room": "W.C alg. Heren", "item": "Schoonmaak deuren"}, {"room": "W.C alg. Heren", "item": "Schoonmaak wanden"}, {"room": "W.C alg. Heren", "item": "schoonmaak Glaswerk"}, {"room": "W.C alg. Heren", "item": "Deurdrangers"}, {"room": "W.C alg. Heren", "item": "vrij/bezet slot"}, {"room": "W.C alg. Heren", "item": "vulling zeep"}, {"room": "W.C alg. Heren", "item": "vulling handdoekjes"}, {"room": "Scootmobielruimte", "item": "Werking deuren"}, {"room": "Scootmobielruimte", "item": "Blusmateriaal"}, {"room": "Trappenhuis", "item": "Schoonmaak trappen"}, {"room": "Trappenhuis", "item": "Schoonmaak wanden"}, {"room": "Trappenhuis", "item": "Obstakels"}, {"room": "Trappenhuis", "item": "Glaswerk"}, {"room": "Trappenhuis", "item": "deurdrangers"}, {"room": "Trappenhuis", "item": "verlichting/nood"}, {"room": "Technisch ruimtes", "item": "Obstakels"}, {"room": "Technisch ruimtes", "item": "deurdrangers"}, {"room": "Technisch ruimtes", "item": "verlichting /nood"}, {"room": "Technisch ruimtes", "item": "schoon"}, {"room": "Technisch ruimtes", "item": "Nooddeur"}, {"room": "Technisch ruimtes", "item": "Blusmateriaal"}, {"room": "Galerij", "item": "Schoonmaak vloeren"}, {"room": "Galerij", "item": "Schoonmaak puien"}, {"room": "Galerij", "item": "Obstakels"}, {"room": "Kelder/Berging", "item": "Schoonmaak vloeren"}, {"room": "Kelder/Berging", "item": "Schoonmaak wanden"}, {"room": "Kelder/Berging", "item": "Obstakels"}, {"room": "Noodtrappen", "item": "Schoon"}, {"room": "Noodtrappen", "item": "Deur gesloten"}, {"room": "Noodtrappen", "item": "Vluchtweg vrij"}, {"room": "Algemeen", "item": "Schotels buitengevel"}, {"room": "Gemeentegroen", "item": "Onderhoud nodig"}, {"room": "liften", "item": "schoon"}, {"room": "liften", "item": "werking"}];
+const rooms = [...new Set(rows.map(r=>r.room))];
+const form = document.getElementById('form');
+
+function esc(s){return s.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+
+let idx=0;
+rooms.forEach((room, ri)=>{
+  const items=rows.filter(r=>r.room===room);
+  const d=document.createElement('details');
+  d.className='card room';
+  d.open=ri===0;
+  d.innerHTML=`<summary><span>${esc(room)}</span><span class="count" id="count-${ri}">0 / ${items.length}</span></summary>`;
+  items.forEach((r)=>{
+    const id='c'+idx++;
+    const div=document.createElement('div');
+    div.className='item';
+    div.dataset.room=room;
+    div.innerHTML=`
+      <div class="item-title">${esc(r.item)}</div>
+      <div class="status">
+        <label><input type="radio" name="${id}" value="Goed" data-room="${ri}"><span class="good">Goed</span></label>
+        <label><input type="radio" name="${id}" value="Matig" data-room="${ri}"><span class="medium">Matig</span></label>
+        <label><input type="radio" name="${id}" value="Aandacht" data-room="${ri}"><span class="attention">Aandacht</span></label>
+      </div>
+      <label class="note-row"><input type="checkbox" class="note-check"> Notitie gemaakt</label>
+      <textarea class="note" placeholder="Notitie bij dit controlepunt..."></textarea>`;
+    div.querySelectorAll('input[type=radio]').forEach(x=>x.addEventListener('change',update));
+    div.querySelector('.note-check').addEventListener('change',e=>{div.querySelector('.note').classList.toggle('show',e.target.checked);saveForm(false)});
+    div.querySelector('.note').addEventListener('input',()=>saveForm(false));
+    d.appendChild(div);
+  });
+  form.appendChild(d);
+});
+
+function allItems(){return [...document.querySelectorAll('.item')]}
+
+function update(){
+  let done=0;
+  const items=allItems();
+  items.forEach(x=>{if(x.querySelector('input[type=radio]:checked')) done++});
+  const pct=Math.round(done/items.length*100);
+  document.getElementById('percent').textContent=pct+'%';
+  document.getElementById('bar').style.width=pct+'%';
+  rooms.forEach((room,ri)=>{
+    const its=items.filter(x=>x.dataset.room===room);
+    const n=its.filter(x=>x.querySelector('input[type=radio]:checked')).length;
+    document.getElementById('count-'+ri).textContent=n+' / '+its.length;
+  });
+  saveForm(false);
+}
+
+function collect(){
+  return {
+    inspector:document.getElementById('inspector').value,
+    date:document.getElementById('date').value,
+    objectnr:document.getElementById('objectnr').value,
+    objectname:document.getElementById('objectname').value,
+    generalNotes:document.getElementById('generalNotes').value,
+    checks:allItems().map(x=>({
+      room:x.dataset.room,
+      item:x.querySelector('.item-title').textContent,
+      status:x.querySelector('input[type=radio]:checked')?.value||'',
+      noteMade:x.querySelector('.note-check').checked,
+      note:x.querySelector('.note').value
+    }))
+  };
+}
+
+function saveForm(show=true){
+  localStorage.setItem('ogcForm',JSON.stringify(collect()));
+  if(show) toast('Opgeslagen op deze iPhone');
+}
+
+function loadForm(){
+  document.getElementById('date').value=new Date().toISOString().slice(0,10);
+  const raw=localStorage.getItem('ogcForm'); if(!raw){update();return}
+  try{
+    const d=JSON.parse(raw);
+    ['inspector','date','objectnr','objectname','generalNotes'].forEach(k=>{if(d[k]!==undefined)document.getElementById(k).value=d[k]});
+    d.checks?.forEach((c,i)=>{
+      const x=allItems()[i]; if(!x)return;
+      const radio=x.querySelector(`input[type=radio][value="${CSS.escape(c.status)}"]`);
+      if(radio)radio.checked=true;
+      x.querySelector('.note-check').checked=!!c.noteMade;
+      x.querySelector('.note').value=c.note||'';
+      x.querySelector('.note').classList.toggle('show',!!c.noteMade);
+    });
+  }catch(e){}
+  update();
+}
+
+
+function savePdfOneDrive(){
+  saveForm(false);
+  // Zorg dat alle secties zichtbaar zijn tijdens het maken van de PDF.
+  document.querySelectorAll('details.room').forEach(d => d.open = true);
+  document.body.classList.add('pdf-mode');
+
+  // Geef de browser een nette bestandsnaam mee waar mogelijk.
+  const d = collect();
+  const safe = (d.objectnr || d.objectname || 'controle')
+    .replace(/[^a-z0-9_-]/gi,'_');
+  document.title = 'OGC-controle-' + safe + '-' + (d.date || '');
+
+  toast('PDF-weergave wordt geopend…');
+
+  setTimeout(() => {
+    window.print();
+    // Na terugkeer uit de iPhone-printweergave herstellen we de normale weergave.
+    setTimeout(() => {
+      document.body.classList.remove('pdf-mode');
+      document.title = 'OGC – Omgeving & Gebouwen Controle';
+    }, 1200);
+  }, 250);
+}
+
+function exportForm(){
+  // Exporteren = PDF, nooit meer TXT.
+  saveForm(false);
+
+  // Alle ruimtes openen zodat de volledige controle in de PDF komt.
+  document.querySelectorAll('details.room').forEach(d => d.open = true);
+
+  const d = collect();
+  const safe = (d.objectnr || d.objectname || 'controle')
+    .replace(/[^a-z0-9_-]/gi,'_');
+
+  document.title = 'OGC-controle-' + safe + '-' + (d.date || '');
+
+  toast('PDF wordt klaargezet…');
+
+  setTimeout(() => {
+    window.print();
+
+    setTimeout(() => {
+      document.title = 'OGC – Omgeving & Gebouwen Controle';
+    }, 1200);
+  }, 250);
+}
+
+function clearForm(){
+  if(!confirm('Alle ingevulde gegevens op deze iPhone wissen?'))return;
+  localStorage.removeItem('ogcForm');
+  location.reload();
+}
+
+function toast(msg){
+  const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';
+  clearTimeout(window._toast);window._toast=setTimeout(()=>t.style.display='none',1800);
+}
+
+document.querySelectorAll('#inspector,#date,#objectnr,#objectname,#generalNotes').forEach(x=>x.addEventListener('input',()=>saveForm(false)));
+loadForm();
+</script>
+</body>
+</html>
